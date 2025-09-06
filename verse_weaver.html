@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verse Weaver</title>
+    <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #shaderCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .ui-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            text-align: center;
+            pointer-events: all;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .title {
+            font-family: 'Permanent Marker', cursive;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #7e83e1, #4274d6);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            25% { background-position: 100% 0%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .text-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .generate-btn {
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #4274d6, #4ecdc4);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 15px;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+        }
+
+        .small-btn {
+            padding: 8px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            color: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .small-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .button-row {
+            margin: 15px 0;
+        }
+
+        .button-row.secondary {
+            margin-top: 25px;
+        }
+
+        .hide-ui-btn {
+            padding: 12px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .hide-ui-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ui-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        .show-ui-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 25;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .show-ui-btn.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .description {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            padding: 15px 25px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            color: white;
+            font-size: 0.9rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            border-left: 4px solid #7e83e1;
+        }
+
+        .status-message.show {
+            opacity: 1;
+        }
+
+        .status-message.error {
+            border-left-color: #ff6b6b;
+            background: rgba(50, 0, 0, 0.8);
+        }
+
+        .examples {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .example-item {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .example-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2rem;
+            }
+            .ui-container {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="shaderCanvas"></canvas>
+    
+    <div class="ui-container" id="uiContainer">
+        <h1 class="title">Verse Weaver</h1>
+        <div class="input-group">
+            <input type="text" id="userInput" class="text-input" 
+                   placeholder="Describe a scene or your feeling..." 
+                   maxlength="100">
+        </div>
+        <div class="button-row">
+            <button id="forceLLMBtn" class="generate-btn" style="background: #7e83e1;">Generate</button>
+        </div>
+        <div class="button-row secondary">
+            <button id="testAPIBtn" class="small-btn">Testing LLM connection</button>
+            <button id="hideUIBtn" class="small-btn">Hide surface</button>
+        </div>
+        <div class="description">
+            Where every uttered word becomes a shuttle,<br>
+            and the quiet weaver of dusk and flame,<br>
+            draws color, shape, and drifting light<br>
+            from the loom of your whispered sky.
+        </div>
+    </div>
+
+    <button id="showUIBtn" class="show-ui-btn">Settings</button>
+    
+    <div id="statusMessage" class="status-message"></div>
+
+    <script>
+        class MoodShaderGenerator {
+            constructor() {
+                this.canvas = document.getElementById('shaderCanvas');
+                this.gl = this.canvas.getContext('webgl2') || this.canvas.getContext('webgl');
+                this.program = null;
+                this.uniforms = {};
+                this.startTime = Date.now();
+                this.animationId = null;
+                this.currentMood = null;
+                
+                this.apiUrl = 'YOUR_API_URL';
+                this.apiKey = 'YOUR_API_KEY';
+                
+                this.setupCanvas();
+                this.setupEventListeners();
+                this.generateDefaultShader();
+                
+                // 自动测试LLM连接
+                setTimeout(() => {
+                    this.testLLMConnection();
+                }, 2000);
+            }
+
+            setupCanvas() {
+                if (!this.gl) {
+                    console.error('WebGL not supported');
+                    return;
+                }
+
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth * window.devicePixelRatio;
+                this.canvas.height = window.innerHeight * window.devicePixelRatio;
+                this.canvas.style.width = window.innerWidth + 'px';
+                this.canvas.style.height = window.innerHeight + 'px';
+                this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            setupEventListeners() {
+                const testAPIBtn = document.getElementById('testAPIBtn');
+                const forceLLMBtn = document.getElementById('forceLLMBtn');
+                const userInput = document.getElementById('userInput');
+                const hideUIBtn = document.getElementById('hideUIBtn');
+                const showUIBtn = document.getElementById('showUIBtn');
+                const uiContainer = document.getElementById('uiContainer');
+
+                testAPIBtn.addEventListener('click', () => this.testLLMConnection());
+                forceLLMBtn.addEventListener('click', () => this.forceLLMGeneration());
+                
+                userInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.forceLLMGeneration();
+                    }
+                });
+
+                hideUIBtn.addEventListener('click', () => {
+                    uiContainer.classList.add('hidden');
+                    showUIBtn.classList.add('visible');
+                });
+
+                showUIBtn.addEventListener('click', () => {
+                    uiContainer.classList.remove('hidden');
+                    showUIBtn.classList.remove('visible');
+                });
+
+                // 示例点击事件
+                document.querySelectorAll('.example-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const text = item.getAttribute('data-text');
+                        userInput.value = text;
+                        this.forceLLMGeneration();
+                    });
+                });
+
+                // 点击空白处隐藏UI
+                document.addEventListener('click', (e) => {
+                    if (!uiContainer.contains(e.target) && !showUIBtn.contains(e.target)) {
+                        if (!uiContainer.classList.contains('hidden')) {
+                            uiContainer.classList.add('hidden');
+                            showUIBtn.classList.add('visible');
+                        }
+                    }
+                });
+            }
+
+            // 强制使用LLM生成（不使用备用方案）
+            async forceLLMGeneration() {
+                const userInput = document.getElementById('userInput').value.trim();
+                
+                if (!userInput) {
+                    this.showStatus('请先输入意境描述', true);
+                    return;
+                }
+
+                const forceLLMBtn = document.getElementById('forceLLMBtn');
+                const originalText = forceLLMBtn.textContent;
+                forceLLMBtn.textContent = 'Generating...';
+                forceLLMBtn.disabled = true;
+                this.showStatus('Working on it...');
+
+                try {
+                    console.log('🚀 强制LLM模式开始...');
+                    console.log('用户输入:', userInput);
+                    
+                    const prompt = this.createPrompt(userInput);
+                    console.log('生成的提示词:', prompt);
+                    
+                    const requestBody = {
+                        model: 'deepseek-chat',
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: `你是GLSL着色器专家。根据用户意境描述，生成完整的fragment shader。
+                                必需要素：uniform float u_time; uniform vec2 u_resolution; void main() {...}
+                                必须设置gl_FragColor。创建动画效果。只返回代码，无解释。` 
+                            },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.9,
+                        max_tokens: 2500
+                    };
+                    
+                    console.log('请求体:', JSON.stringify(requestBody, null, 2));
+                    
+                    // 添加超时控制
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+                    
+                    const response = await fetch(this.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        body: JSON.stringify(requestBody),
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeoutId);
+                    console.log('API响应状态:', response.status);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API错误响应:', errorText);
+                        throw new Error(`强制LLM调用失败: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('API返回完整数据:', data);
+                    
+                    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        console.error('API返回格式错误，完整数据:', JSON.stringify(data, null, 2));
+                        throw new Error('LLM返回数据格式错误');
+                    }
+
+                    const generatedShader = data.choices[0].message.content.trim();
+                    console.log('🎨 LLM生成的原始代码:', generatedShader);
+                    
+                    if (!generatedShader) {
+                        throw new Error('LLM返回了空的着色器代码');
+                    }
+                    
+                    const cleanShader = this.extractGLSLCode(generatedShader);
+                    console.log('🔧 清理后的代码:', cleanShader);
+
+                    if (this.validateGLSLCode(cleanShader)) {
+                        console.log('✅ 代码验证通过，开始编译...');
+                        const success = await this.compileAndRenderShader(cleanShader);
+                        if (success) {
+                            this.showStatus('✨ Success! Shader generated');
+                        } else {
+                            throw new Error('着色器编译失败');
+                        }
+                    } else {
+                        console.error('❌ 代码验证失败');
+                        throw new Error('LLM生成的代码验证失败');
+                    }
+                    
+                } catch (error) {
+                    console.error('💥 强制LLM生成失败:', error);
+                    
+                    let errorMessage = error.message;
+                    if (error.name === 'AbortError') {
+                        errorMessage = '请求超时，请检查网络连接';
+                    } else if (error.message.includes('fetch')) {
+                        errorMessage = '网络连接失败，请检查网络';
+                    }
+                    
+                    this.showStatus(`💥 LLM失败: ${errorMessage}`, true);
+                    
+                    // 自动回退到默认着色器
+                    console.log('🔄 API失败，回退到默认着色器...');
+                    setTimeout(() => {
+                        this.generateDefaultShader();
+                        this.showStatus('🎨 已切换到默认着色器');
+                    }, 2000);
+                    
+                } finally {
+                    forceLLMBtn.textContent = originalText;
+                    forceLLMBtn.disabled = false;
+                }
+            }
+
+            // 测试LLM连接
+            async testLLMConnection() {
+                const testAPIBtn = document.getElementById('testAPIBtn');
+                const originalText = testAPIBtn.textContent;
+                testAPIBtn.textContent = 'Testing...';
+                testAPIBtn.disabled = true;
+                this.showStatus('Testing LLM...');
+
+                try {
+                    console.log('🧪 开始测试LLM API连接...');
+                    
+                    const response = await fetch(this.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'deepseek-chat',
+                            messages: [
+                                { 
+                                    role: 'user', 
+                                    content: '请回复"Success"这个单词' 
+                                }
+                            ],
+                            max_tokens: 50
+                        })
+                    });
+
+                    console.log('🔍 测试响应状态:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('🚫 API测试失败:', errorText);
+                        throw new Error(`API测试失败: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('✅ API测试成功，返回数据:', data);
+                    
+                    if (data.choices && data.choices[0] && data.choices[0].message) {
+                        this.showStatus(`Testing: ${data.choices[0].message.content}`);
+                    } else {
+                        this.showStatus('Test succeed, but received wrong reply.');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ LLM连接测试失败:', error);
+                    this.showStatus(`LLM testing FAILED: ${error.message}`, true);
+                } finally {
+                    testAPIBtn.textContent = originalText;
+                    testAPIBtn.disabled = false;
+                }
+            }
+
+            // 显示状态消息
+            showStatus(message, isError = false) {
+                const statusElement = document.getElementById('statusMessage');
+                statusElement.textContent = message;
+                statusElement.className = `status-message show ${isError ? 'error' : ''}`;
+                
+                setTimeout(() => {
+                    statusElement.classList.remove('show');
+                }, 3000);
+            }
+
+            // 分析文本情感和意境（保留作为参考表）
+            getMoodReferences() {
+                const moodKeywords = {
+                    peaceful: ['安静', '平静', '宁静', '祥和', '悠然', '静谧', 'peaceful', 'calm', 'serene', 'tranquil'],
+                    energetic: ['活力', '激情', '热烈', '火热', '激动', '兴奋', 'energetic', 'vibrant', 'dynamic', 'lively'],
+                    melancholic: ['忧郁', '悲伤', '惆怅', '孤独', '思念', '怀念', 'melancholic', 'sad', 'lonely', 'nostalgic'],
+                    mystical: ['神秘', '梦幻', '魔幻', '奇异', '超凡', '幻想', 'mystical', 'magical', 'ethereal', 'surreal'],
+                    natural: ['自然', '森林', '山水', '花草', '春天', '夏日', '秋叶', '冬雪', 'nature', 'forest', 'mountain', 'flower'],
+                    urban: ['城市', '都市', '霓虹', '街道', '建筑', '现代', 'urban', 'city', 'neon', 'modern', 'street'],
+                    cosmic: ['宇宙', '星空', '银河', '星辰', '太空', '无限', 'cosmic', 'space', 'galaxy', 'stars', 'universe'],
+                    oceanic: ['海洋', '波浪', '潮水', '深海', '蓝色', '水', 'ocean', 'wave', 'sea', 'water', 'blue']
+                };
+
+                const colorPalettes = {
+                    peaceful: [[0.7, 0.9, 0.8], [0.5, 0.8, 0.9], [0.9, 0.9, 0.7], [0.6, 0.7, 0.9]],
+                    energetic: [[1.0, 0.3, 0.3], [1.0, 0.7, 0.2], [1.0, 0.2, 0.8], [0.9, 0.1, 0.1]],
+                    melancholic: [[0.4, 0.5, 0.7], [0.3, 0.4, 0.6], [0.5, 0.4, 0.7], [0.2, 0.3, 0.5]],
+                    mystical: [[0.6, 0.2, 0.8], [0.2, 0.6, 0.9], [0.8, 0.3, 0.9], [0.3, 0.2, 0.7]],
+                    natural: [[0.3, 0.8, 0.4], [0.8, 0.9, 0.3], [0.6, 0.4, 0.2], [0.2, 0.6, 0.3]],
+                    urban: [[0.9, 0.1, 0.9], [0.1, 0.9, 0.9], [0.9, 0.9, 0.1], [0.9, 0.3, 0.1]],
+                    cosmic: [[0.1, 0.1, 0.9], [0.8, 0.1, 0.9], [0.1, 0.8, 0.9], [0.9, 0.9, 0.1]],
+                    oceanic: [[0.1, 0.4, 0.8], [0.2, 0.7, 0.9], [0.0, 0.3, 0.6], [0.3, 0.8, 0.8]]
+                };
+
+                const patternTypes = {
+                    peaceful: 'organic',
+                    energetic: 'geometric', 
+                    melancholic: 'flowing',
+                    mystical: 'fractal',
+                    natural: 'organic',
+                    urban: 'geometric',
+                    cosmic: 'spiral',
+                    oceanic: 'wave'
+                };
+
+                return { moodKeywords, colorPalettes, patternTypes };
+            }
+
+            // 提取GLSL代码的方法
+            extractGLSLCode(rawContent) {
+                console.log('开始提取GLSL代码，原始内容:', rawContent);
+                
+                let code = rawContent;
+                
+                // 移除各种可能的markdown标记
+                code = code.replace(/```glsl\s*/g, '');
+                code = code.replace(/```hlsl\s*/g, '');
+                code = code.replace(/```\s*/g, '');
+                code = code.replace(/^\s*glsl\s*/gi, '');
+                
+                // 移除可能的解释文本（查找从precision或uniform开始的代码）
+                const codeStart = code.search(/(precision\s+|uniform\s+|void\s+main)/i);
+                if (codeStart > 0) {
+                    code = code.substring(codeStart);
+                }
+                
+                // 移除代码后面可能的解释文本
+                const lines = code.split('\n');
+                let cleanLines = [];
+                let inShaderCode = false;
+                
+                for (let line of lines) {
+                    const trimmedLine = line.trim();
+                    
+                    // 检测是否开始了着色器代码
+                    if (trimmedLine.match(/(precision\s+|uniform\s+|void\s+main|#|\/\/)/i)) {
+                        inShaderCode = true;
+                    }
+                    
+                    // 如果在着色器代码中，保留这行
+                    if (inShaderCode) {
+                        cleanLines.push(line);
+                        
+                        // 如果遇到main函数的最后一个}，可能代码结束了
+                        if (trimmedLine === '}' && cleanLines.join('\n').includes('void main()')) {
+                            // 检查是否有完整的main函数
+                            const fullCode = cleanLines.join('\n');
+                            const openBraces = (fullCode.match(/\{/g) || []).length;
+                            const closeBraces = (fullCode.match(/\}/g) || []).length;
+                            if (openBraces === closeBraces) {
+                                break; // 代码可能完整了
+                            }
+                        }
+                    }
+                }
+                
+                code = cleanLines.join('\n');
+                
+                // 确保代码包含必要的uniform声明
+                if (!code.includes('uniform float u_time')) {
+                    code = 'uniform float u_time;\n' + code;
+                }
+                if (!code.includes('uniform vec2 u_resolution')) {
+                    code = 'uniform vec2 u_resolution;\n' + code;
+                }
+                if (!code.includes('precision')) {
+                    code = 'precision highp float;\n' + code;
+                }
+                
+                console.log('提取后的GLSL代码:', code);
+                return code.trim();
+            }
+
+            // 改进的API调用方法
+            async generateMoodShader() {
+                const userInput = document.getElementById('userInput').value.trim();
+                
+                if (!userInput) {
+                    this.generateDefaultShader();
+                    this.showStatus('使用默认意境着色器');
+                    return;
+                }
+
+                // 显示加载状态
+                const generateBtn = document.getElementById('generateBtn');
+                const originalText = generateBtn.textContent;
+                generateBtn.textContent = '生成中...';
+                generateBtn.disabled = true;
+                this.showStatus('正在调用LLM生成意境着色器...');
+
+                try {
+                    console.log('开始调用LLM API...');
+                    console.log('用户输入:', userInput);
+                    console.log('API URL:', this.apiUrl);
+                    
+                    const prompt = this.createPrompt(userInput);
+                    console.log('生成的提示词:', prompt);
+                    
+                    const requestBody = {
+                        model: 'deepseek-chat',
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: `你是一个GLSL着色器专家。请根据用户描述的意境生成一个完整的片段着色器。
+                                要求：
+                                1. 必须包含 uniform float u_time; 和 uniform vec2 u_resolution;
+                                2. 必须有 void main() 函数
+                                3. 必须设置 gl_FragColor
+                                4. 使用时间变量创建动画效果
+                                5. 创建铺满全屏且不重复的pattern
+                                6. 根据意境选择合适的颜色和形状，其中颜色之间分明一点
+                                7. 只返回GLSL代码，不要任何解释` 
+                            },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.8,
+                        max_tokens: 2000
+                    };
+                    
+                    console.log('请求体:', JSON.stringify(requestBody, null, 2));
+                    
+                    const response = await fetch(this.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    console.log('API响应状态:', response.status);
+                    console.log('API响应头:', [...response.headers.entries()]);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API错误响应:', errorText);
+                        throw new Error(`API请求失败: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('API返回数据:', data);
+                    
+                    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        console.error('API返回格式错误，完整数据:', JSON.stringify(data, null, 2));
+                        throw new Error('API返回格式错误');
+                    }
+
+                    const generatedShader = data.choices[0].message.content.trim();
+                    console.log('LLM生成的原始着色器代码:', generatedShader);
+                    
+                    const cleanShader = this.extractGLSLCode(generatedShader);
+                    console.log('清理后的着色器代码:', cleanShader);
+
+                    // 验证生成的代码
+                    if (this.validateGLSLCode(cleanShader)) {
+                        console.log('✅ 着色器代码验证通过，开始编译...');
+                        this.compileAndRenderShader(cleanShader);
+                        this.showStatus('✨ LLM生成着色器成功！');
+                    } else {
+                        console.error('❌ 生成的GLSL代码验证失败');
+                        throw new Error('生成的GLSL代码格式不正确');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ 生成着色器时出错:', error);
+                    console.error('错误堆栈:', error.stack);
+                    this.showStatus(`API调用失败: ${error.message}，使用文本分析生成`, true);
+                    // 如果API失败，使用基于文本的分析生成
+                    this.generateFallbackShader(userInput);
+                } finally {
+                    generateBtn.textContent = originalText;
+                    generateBtn.disabled = false;
+                }
+            }
+
+            // 创建更详细的提示词
+            createPrompt(userInput) {
+                return `请为以下意境生成一个GLSL片段着色器: "${userInput}"
+
+要求：
+1. 必须包含这些uniform: uniform float u_time; uniform vec2 u_resolution;
+2. 必须有void main()函数，最后必须设置gl_FragColor
+3. 创建符合意境的动态图案，使用u_time制作时间动画
+4. 图案要铺满全屏且不重复
+5. 根据意境选择3-4种主要颜色，可以是渐变和混合
+6. 使用噪声函数或数学函数创建复杂的视觉效果
+7. 确保效果是流动的、有机的，像抽象艺术一样
+
+参考意境类型：
+- 自然场景: 绿色/棕色系，有机流动形状
+- 城市夜景: 霓虹色彩，几何图案 
+- 宇宙星空: 深蓝/紫色，螺旋和星点
+- 海洋波浪: 蓝色渐变，波浪形状
+- 日落黄昏: 橙红渐变，温暖色调
+- 梦境幻想: 粉紫色系，柔和过渡
+
+**重要：**请创造独特的视觉效果，不要重复常见的模板。
+直接返回完整的GLSL代码，不要解释：`;
+            }
+
+            // 验证GLSL代码的基本结构
+            validateGLSLCode(code) {
+                console.log('开始验证GLSL代码...');
+                
+                const requiredElements = [
+                    'void main()',
+                    'gl_FragColor'
+                ];
+                
+                // 检查必需元素
+                const missingElements = requiredElements.filter(element => !code.includes(element));
+                if (missingElements.length > 0) {
+                    console.error('❌ 缺少必需元素:', missingElements);
+                    return false;
+                }
+                
+                // 检查是否有明显的语法错误
+                const openBraces = (code.match(/\{/g) || []).length;
+                const closeBraces = (code.match(/\}/g) || []).length;
+                if (openBraces !== closeBraces) {
+                    console.error('❌ 大括号不匹配:', { openBraces, closeBraces });
+                    return false;
+                }
+                
+                // 检查是否包含uniform（虽然我们会自动添加，但最好有）
+                const hasTimeUniform = code.includes('u_time');
+                const hasResolutionUniform = code.includes('u_resolution');
+                
+                console.log('✅ 验证结果:', {
+                    hasMainFunction: code.includes('void main()'),
+                    hasFragColor: code.includes('gl_FragColor'),
+                    hasTimeUniform,
+                    hasResolutionUniform,
+                    bracesMatch: openBraces === closeBraces
+                });
+                
+                return true;
+            }
+
+            // 备用方案：基于文本分析生成
+            generateFallbackShader(userInput) {
+                console.log('使用备用方案生成着色器');
+                this.showStatus('🎨 使用文本分析生成意境着色器');
+                const mood = this.analyzeMoodFromText(userInput);
+                const fragmentShader = this.createMoodFragmentShader(mood);
+                this.compileAndRenderShader(fragmentShader);
+            }
+
+            // 基于文本的意境分析
+            analyzeMoodFromText(text) {
+                const { moodKeywords, colorPalettes, patternTypes } = this.getMoodReferences();
+                const lowerText = text.toLowerCase();
+                
+                // 计算每种意境的匹配分数
+                const scores = {};
+                Object.keys(moodKeywords).forEach(mood => {
+                    scores[mood] = 0;
+                    moodKeywords[mood].forEach(keyword => {
+                        if (lowerText.includes(keyword.toLowerCase())) {
+                            scores[mood] += 1;
+                        }
+                    });
+                });
+                
+                // 找到最高分的意境
+                let bestMood = 'mystical';
+                let maxScore = 0;
+                Object.keys(scores).forEach(mood => {
+                    if (scores[mood] > maxScore) {
+                        maxScore = scores[mood];
+                        bestMood = mood;
+                    }
+                });
+                
+                // 如果没有匹配到关键词，基于文本长度和字符特征选择
+                if (maxScore === 0) {
+                    const hash = this.hashString(text);
+                    const moodList = Object.keys(moodKeywords);
+                    bestMood = moodList[hash % moodList.length];
+                }
+                
+                return {
+                    mood: bestMood,
+                    colors: colorPalettes[bestMood],
+                    pattern: patternTypes[bestMood],
+                    intensity: Math.min(1.0, 0.5 + maxScore * 0.1),
+                    complexity: 1.0 + maxScore * 0.3,
+                    hash: this.hashString(text),
+                    speed: bestMood === 'energetic' ? 2.0 : bestMood === 'peaceful' ? 0.5 : 1.0
+                };
+            }
+
+            hashString(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                return Math.abs(hash);
+            }
+
+            generateDefaultShader() {
+                this.currentMood = {
+                    mood: 'mystical',
+                    colors: [[0.6, 0.2, 0.8], [0.2, 0.6, 0.9], [0.8, 0.3, 0.9], [0.3, 0.2, 0.7]],
+                    pattern: 'fractal',
+                    intensity: 0.8,
+                    complexity: 2.0,
+                    hash: 12345,
+                    speed: 1.0
+                };
+                const fragmentShader = this.createMoodFragmentShader(this.currentMood);
+                this.compileAndRenderShader(fragmentShader);
+            }
+
+            createMoodFragmentShader(mood) {
+                const patternFunctions = {
+                    organic: this.getOrganicPattern(),
+                    geometric: this.getGeometricPattern(), 
+                    flowing: this.getFlowingPattern(),
+                    fractal: this.getFractalPattern(),
+                    spiral: this.getSpiralPattern(),
+                    wave: this.getWavePattern()
+                };
+
+                return `
+                    precision highp float;
+                    uniform float u_time;
+                    uniform vec2 u_resolution;
+
+                    // 高质量噪声函数
+                    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+                    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+                    float snoise(vec3 v) {
+                        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                        
+                        vec3 i = floor(v + dot(v, C.yyy));
+                        vec3 x0 = v - i + dot(i, C.xxx);
+                        
+                        vec3 g = step(x0.yzx, x0.xyz);
+                        vec3 l = 1.0 - g;
+                        vec3 i1 = min(g.xyz, l.zxy);
+                        vec3 i2 = max(g.xyz, l.zxy);
+                        
+                        vec3 x1 = x0 - i1 + C.xxx;
+                        vec3 x2 = x0 - i2 + C.yyy;
+                        vec3 x3 = x0 - D.yyy;
+                        
+                        i = mod289(i);
+                        vec4 p = permute(permute(permute(
+                            i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                            
+                        float n_ = 0.142857142857;
+                        vec3 ns = n_ * D.wyz - D.xzx;
+                        
+                        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                        
+                        vec4 x_ = floor(j * ns.z);
+                        vec4 y_ = floor(j - 7.0 * x_);
+                        
+                        vec4 x = x_ *ns.x + ns.yyyy;
+                        vec4 y = y_ *ns.x + ns.yyyy;
+                        vec4 h = 1.0 - abs(x) - abs(y);
+                        
+                        vec4 b0 = vec4(x.xy, y.xy);
+                        vec4 b1 = vec4(x.zw, y.zw);
+                        
+                        vec4 s0 = floor(b0)*2.0 + 1.0;
+                        vec4 s1 = floor(b1)*2.0 + 1.0;
+                        vec4 sh = -step(h, vec4(0.0));
+                        
+                        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+                        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+                        
+                        vec3 p0 = vec3(a0.xy, h.x);
+                        vec3 p1 = vec3(a0.zw, h.y);
+                        vec3 p2 = vec3(a1.xy, h.z);
+                        vec3 p3 = vec3(a1.zw, h.w);
+                        
+                        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+                        p0 *= norm.x;
+                        p1 *= norm.y;
+                        p2 *= norm.z;
+                        p3 *= norm.w;
+                        
+                        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                        m = m * m;
+                        return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+                    }
+
+                    // 分形布朗运动
+                    float fbm(vec3 p) {
+                        float value = 0.0;
+                        float amplitude = 0.5;
+                        float frequency = 1.0;
+                        
+                        for(int i = 0; i < 5; i++) {
+                            value += amplitude * snoise(p * frequency);
+                            amplitude *= 0.5;
+                            frequency *= 2.0;
+                        }
+                        return value;
+                    }
+
+                    ${patternFunctions[mood.pattern]}
+
+                    // 颜色混合函数
+                    vec3 mixColors(float t, float t2, float t3, float t4) {
+                        vec3 color1 = vec3(${mood.colors[0].join(', ')});
+                        vec3 color2 = vec3(${mood.colors[1].join(', ')});
+                        vec3 color3 = vec3(${mood.colors[2].join(', ')});
+                        vec3 color4 = vec3(${mood.colors[3].join(', ')});
+                        
+                        vec3 mix1 = mix(color1, color2, smoothstep(0.0, 1.0, t));
+                        vec3 mix2 = mix(color3, color4, smoothstep(0.0, 1.0, t2));
+                        
+                        return mix(mix1, mix2, smoothstep(0.0, 1.0, t3)) + color4 * t4 * 0.3;
+                    }
+
+                    void main() {
+                        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+                        float aspect = u_resolution.x / u_resolution.y;
+                        
+                        // 创建无重复的坐标系统
+                        vec2 coord = uv;
+                        coord.x *= aspect;
+                        
+                        // 添加时间演化
+                        float time = u_time * ${mood.speed.toFixed(2)};
+                        
+                        // 生成模式
+                        vec4 pattern = getPattern(coord, time);
+                        
+                        // 多层次颜色混合
+                        vec3 finalColor = mixColors(
+                            pattern.x,
+                            pattern.y, 
+                            pattern.z,
+                            pattern.w
+                        );
+                        
+                        // 添加深度和光照效果
+                        float depth = (pattern.x + pattern.y + pattern.z) * 0.333;
+                        finalColor += vec3(depth * 0.2);
+                        
+                        // 边缘发光效果
+                        float edge = length(uv - 0.5);
+                        finalColor *= (1.0 - edge * 0.3);
+                        
+                        gl_FragColor = vec4(finalColor, 1.0);
+                    }
+                `;
+            }
+
+            getOrganicPattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec3 p = vec3(coord * 3.0, time * 0.5);
+                        
+                        float n1 = fbm(p);
+                        float n2 = fbm(p + vec3(1.7, 9.2, 4.3));
+                        float n3 = fbm(p + vec3(8.3, 2.8, 6.1));
+                        float n4 = fbm(p * 2.0 + vec3(time * 0.3, time * 0.2, 0.0));
+                        
+                        return vec4(n1, n2, n3, n4) * 0.5 + 0.5;
+                    }
+                `;
+            }
+
+            getGeometricPattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec2 p = coord * 8.0;
+                        
+                        float d1 = length(fract(p + vec2(sin(time), cos(time))) - 0.5);
+                        float d2 = length(fract(p * 1.3 + vec2(cos(time * 0.7), sin(time * 1.3))) - 0.5);
+                        float d3 = abs(sin(p.x * 3.0 + time) * sin(p.y * 3.0 + time * 1.1));
+                        float d4 = smoothstep(0.1, 0.9, abs(sin(p.x + p.y + time * 2.0)));
+                        
+                        return vec4(1.0 - d1, 1.0 - d2, d3, d4);
+                    }
+                `;
+            }
+
+            getFlowingPattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec2 p = coord * 4.0;
+                        
+                        float flow1 = sin(p.x + sin(p.y + time)) * cos(p.y + time * 0.7);
+                        float flow2 = cos(p.x * 1.3 + cos(p.y * 0.8 + time * 1.2)) * sin(p.y * 1.1 + time);
+                        float flow3 = sin((p.x + p.y) * 0.5 + time * 0.8) * cos((p.x - p.y) * 0.7 + time * 0.5);
+                        float flow4 = snoise(vec3(p * 0.5, time * 0.3));
+                        
+                        return vec4(flow1, flow2, flow3, flow4) * 0.5 + 0.5;
+                    }
+                `;
+            }
+
+            getFractalPattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec2 p = coord * 2.0;
+                        
+                        float f1 = fbm(vec3(p, time * 0.4));
+                        float f2 = fbm(vec3(p * 2.0 + vec2(f1), time * 0.3));
+                        float f3 = fbm(vec3(p * 4.0 + vec2(f2), time * 0.2));
+                        float f4 = fbm(vec3(p + vec2(f3), time * 0.5));
+                        
+                        return vec4(f1, f2, f3, f4) * 0.5 + 0.5;
+                    }
+                `;
+            }
+
+            getSpiralPattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec2 center = vec2(0.5);
+                        vec2 p = coord - center;
+                        
+                        float r = length(p);
+                        float a = atan(p.y, p.x);
+                        
+                        float spiral1 = sin(r * 20.0 - a * 5.0 + time * 2.0);
+                        float spiral2 = cos(r * 15.0 - a * 3.0 + time * 1.5);
+                        float spiral3 = sin(r * 25.0 + a * 7.0 - time * 1.8);
+                        float spiral4 = cos(r * 10.0 + a * 4.0 + time * 0.8);
+                        
+                        return vec4(spiral1, spiral2, spiral3, spiral4) * 0.5 + 0.5;
+                    }
+                `;
+            }
+
+            getWavePattern() {
+                return `
+                    vec4 getPattern(vec2 coord, float time) {
+                        vec2 p = coord * 6.0;
+                        
+                        float wave1 = sin(p.x + sin(p.y + time * 2.0) * 2.0) * cos(p.y + time);
+                        float wave2 = cos(p.y + cos(p.x + time * 1.5) * 1.5) * sin(p.x + time * 0.8);
+                        float wave3 = sin(p.x * 0.7 + p.y * 1.3 + time) * cos(p.x * 1.2 + p.y * 0.9 + time * 1.2);
+                        float wave4 = snoise(vec3(p * 0.3, time * 0.4));
+                        
+                        return vec4(wave1, wave2, wave3, wave4) * 0.5 + 0.5;
+                    }
+                `;
+            }
+
+            createShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error('Shader compilation error:', this.gl.getShaderInfoLog(shader));
+                    this.gl.deleteShader(shader);
+                    return null;
+                }
+                
+                return shader;
+            }
+
+            createProgram(vertexShader, fragmentShader) {
+                const program = this.gl.createProgram();
+                this.gl.attachShader(program, vertexShader);
+                this.gl.attachShader(program, fragmentShader);
+                this.gl.linkProgram(program);
+                
+                if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+                    console.error('Program linking error:', this.gl.getProgramInfoLog(program));
+                    this.gl.deleteProgram(program);
+                    return null;
+                }
+                
+                return program;
+            }
+
+            compileAndRenderShader(fragmentShaderSource) {
+                const vertexShaderSource = `
+                    attribute vec2 a_position;
+                    void main() {
+                        gl_Position = vec4(a_position, 0.0, 1.0);
+                    }
+                `;
+
+                try {
+                    console.log('🔧 开始编译着色器...');
+                    const vertexShader = this.createShader(this.gl.VERTEX_SHADER, vertexShaderSource);
+                    const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, fragmentShaderSource);
+                    
+                    if (!vertexShader) {
+                        throw new Error('顶点着色器编译失败');
+                    }
+                    
+                    if (!fragmentShader) {
+                        throw new Error('片段着色器编译失败');
+                    }
+                    
+                    if (this.program) {
+                        this.gl.deleteProgram(this.program);
+                    }
+                    
+                    this.program = this.createProgram(vertexShader, fragmentShader);
+                    
+                    if (!this.program) {
+                        throw new Error('着色器程序链接失败');
+                    }
+                    
+                    console.log('✅ 着色器编译成功');
+                    this.setupShader();
+                    this.startAnimation();
+                    return true;
+                    
+                } catch (error) {
+                    console.error('❌ 编译着色器时出错:', error);
+                    console.log('尝试使用的GLSL代码:', fragmentShaderSource);
+                    this.showStatus(`着色器编译失败: ${error.message}`, true);
+                    
+                    // 如果编译失败，回退到默认着色器
+                    if (!this.program) {
+                        console.log('🔄 回退到默认着色器...');
+                        setTimeout(() => {
+                            this.generateDefaultShader();
+                        }, 1000);
+                    }
+                    return false;
+                }
+            }
+
+            setupShader() {
+                this.gl.useProgram(this.program);
+                
+                const positionAttributeLocation = this.gl.getAttribLocation(this.program, 'a_position');
+                this.uniforms.time = this.gl.getUniformLocation(this.program, 'u_time');
+                this.uniforms.resolution = this.gl.getUniformLocation(this.program, 'u_resolution');
+                
+                const positionBuffer = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, positionBuffer);
+                
+                const positions = [
+                    -1, -1,
+                     1, -1,
+                    -1,  1,
+                    -1,  1,
+                     1, -1,
+                     1,  1
+                ];
+                
+                this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
+                this.gl.enableVertexAttribArray(positionAttributeLocation);
+                this.gl.vertexAttribPointer(positionAttributeLocation, 2, this.gl.FLOAT, false, 0, 0);
+                
+                this.gl.uniform2f(this.uniforms.resolution, this.canvas.width, this.canvas.height);
+            }
+
+            startAnimation() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                }
+                
+                const animate = () => {
+                    const currentTime = (Date.now() - this.startTime) * 0.001;
+                    
+                    this.gl.uniform1f(this.uniforms.time, currentTime);
+                    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+                    
+                    this.animationId = requestAnimationFrame(animate);
+                };
+                
+                animate();
+            }
+        }
+
+        // 初始化应用
+        window.addEventListener('load', () => {
+            new MoodShaderGenerator();
+        });
+    </script>
+</body>
+</html>
